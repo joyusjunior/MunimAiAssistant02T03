@@ -31,7 +31,7 @@ flow = Flow.from_client_secrets_file(
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/drive.file'
     ],
-    redirect_uri='https://munimaiassistant02t03.onrender.com/callback'  # MUST MATCH Google Cloud
+    redirect_uri='https://munimaiassistant02t03.onrender.com'  # MUST MATCH Google Cloud
 )
 
 # Accounting functions
