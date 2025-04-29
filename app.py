@@ -32,7 +32,7 @@ flow = Flow.from_client_secrets_file(
     scopes=["openid", "https://www.googleapis.com/auth/userinfo.profile", 
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/drive.file"],
-    redirect_uri="https://your-app-name.onrender.com/callback"
+    redirect_uri="https://munimaiassistant02t03.onrender.com/callback"
 )
 
 # Accounting functions
