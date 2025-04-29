@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="chat-container">
+    <div class="chat-header">
+        <h4><i class="fas fa-robot"></i> Accounting Assistant</h4>
+        <div class="user-info">
+            <span>{{ user.name }}</span>
+            <a href="/logout" class="btn btn-sm btn-outline-danger">Logout</a>
+        </div>
+    </div>
+    
+    <div class="chat-messages" id="chatbox">
+        <div class="bot-message">
+            <div class="message-content">
+                Hello {{ user.name }}! I'm your accounting assistant. How can I help you today?
+            </div>
+        </div>
+    </div>
+    
+    <div class="chat-input">
+        <input type="text" id="userInput" placeholder="Type your accounting question...">
+        <button id="sendButton"><i class="fas fa-paper-plane"></i></button>
+    </div>
+</div>
+{% endblock %}
