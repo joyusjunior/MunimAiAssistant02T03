@@ -98,7 +98,7 @@ def callback():
         
     except Exception as e:
         print(f"OAuth error: {str(e)}")
-        return redirect(url_for('home')
+        return redirect(url_for('home'))
 @app.route('/callback')
 def callback():
     try:
