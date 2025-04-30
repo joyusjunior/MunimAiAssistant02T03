@@ -4,18 +4,16 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
 
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY')
-
-# Critical production settings
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',
-    PERMANENT_SESSION_LIFETIME=86400  # 1 day
+    SESSION_COOKIE_SAMESITE='Lax'
 )
 
 login_manager = LoginManager(app)
@@ -27,8 +25,6 @@ class User(UserMixin):
         self.email = email
         self.name = name
 
-# Google OAuth setup
-os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 flow = Flow.from_client_secrets_file(
     'client_secret.json',
     scopes=['openid', 'email', 'profile', 'https://www.googleapis.com/auth/drive.file'],
@@ -38,51 +34,36 @@ flow = Flow.from_client_secrets_file(
 @login_manager.user_loader
 def load_user(user_id):
     if 'user' in session:
-        user_data = session['user']
-        return User(user_data['id'], user_data['email'], user_data['name'])
+        return User(session['user']['id'], session['user']['email'], session['user']['name'])
     return None
 
 @app.route('/')
 def home():
-    if current_user.is_authenticated:
-        return redirect(url_for('chat'))
     return render_template('index.html')
 
 @app.route('/login')
 def login():
-    authorization_url, state = flow.authorization_url(
-        prompt='consent',
-        access_type='offline'
-    )
+    authorization_url, state = flow.authorization_url(prompt='consent')
     session['state'] = state
     return redirect(authorization_url)
 
 @app.route('/callback')
 def callback():
     try:
-        if request.args.get('state') != session.get('state'):
-            return "Invalid state", 400
-            
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
-        
         userinfo = build('oauth2', 'v2', credentials=credentials).userinfo().get().execute()
+        
         user = User(userinfo['id'], userinfo['email'], userinfo.get('name', ''))
         login_user(user)
-        
-        session.permanent = True
         session['user'] = {
             'id': userinfo['id'],
             'email': userinfo['email'],
-            'name': userinfo.get('name', ''),
-            'credentials': {
-                'token': credentials.token,
-                'refresh_token': credentials.refresh_token
-            }
+            'name': userinfo.get('name', '')
         }
         
         resp = make_response(redirect(url_for('chat')))
-        resp.set_cookie('session_id', value=session.sid, secure=True, httponly=True, samesite='Lax')
+        resp.set_cookie('session_id', value=session.sid, secure=True, httponly=True)
         return resp
         
     except Exception as e:
@@ -93,6 +74,24 @@ def callback():
 @login_required
 def chat():
     return render_template('chat.html', user=session['user'])
+
+@app.route('/api/message', methods=['POST'])
+@login_required
+def handle_message():
+    user_message = request.json.get('message', '').strip().lower()
+    
+    responses = {
+        "hello": "Hello! I'm Munim, your accounting assistant. I can help with invoices, expenses, and reports.",
+        "invoice": "To create an invoice, provide: 1) Item 2) Quantity 3) Price (e.g., '2 laptops @ $800 each')",
+        "expense": "To record expenses, provide: 1) Amount 2) Category 3) Description (e.g., '$50 office supplies')",
+        "default": "I specialize in: • Invoices • Expenses • Reports • Tax prep. Try: 'Create invoice for 3 laptops'"
+    }
+    
+    response = responses.get(user_message, responses["default"])
+    return jsonify({
+        "response": response,
+        "timestamp": datetime.now().isoformat()
+    })
 
 @app.route('/logout')
 def logout():
