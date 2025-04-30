@@ -1,11 +1,8 @@
-/* Modern WhatsApp-like UI with accounting theme */
 :root {
-  --primary-color: #25D366;
-  --secondary-color: #075E54;
-  --accent-color: #128C7E;
+  --primary: #25D366;
+  --secondary: #075E54;
+  --accent: #128C7E;
   --light-bg: #e5f5ea;
-  --dark-text: #333333;
-  --light-text: #ffffff;
 }
 
 .chat-container {
@@ -14,41 +11,23 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  font-family: 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4efe9 100%);
+  font-family: 'Segoe UI', sans-serif;
+  background: var(--light-bg);
 }
 
 .chat-header {
-  background: var(--secondary-color);
-  color: var(--light-text);
+  background: var(--secondary);
+  color: white;
   padding: 15px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-.chat-header h4 {
-  margin: 0;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.chat-header .user-info {
-  display: flex;
-  align-items: center;
-  gap: 15px;
 }
 
 .chat-messages {
   flex: 1;
   padding: 20px;
   overflow-y: auto;
-  background-color: var(--light-bg);
-  background-image: url('data:image/svg+xml;utf8,<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path fill="%23ffffff20" d="M30,10L50,30L70,10L90,30L70,50L90,70L70,90L50,70L30,90L10,70L30,50L10,30L30,10Z"/></svg>');
-  background-size: 150px;
 }
 
 .message {
@@ -70,27 +49,16 @@
   padding: 12px 16px;
   border-radius: 18px;
   line-height: 1.4;
-  position: relative;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .user-message .message-content {
-  background-color: var(--primary-color);
+  background: var(--primary);
   color: white;
-  border-bottom-right-radius: 4px;
 }
 
 .bot-message .message-content {
-  background-color: white;
-  color: var(--dark-text);
-  border-bottom-left-radius: 4px;
-}
-
-.message-time {
-  font-size: 11px;
-  color: rgba(0,0,0,0.4);
-  margin-top: 4px;
-  text-align: right;
+  background: white;
+  color: #333;
 }
 
 .chat-input {
@@ -105,37 +73,24 @@
   padding: 12px 15px;
   border: 1px solid #ddd;
   border-radius: 24px;
-  font-size: 15px;
   outline: none;
-  transition: border 0.3s;
-}
-
-.chat-input input:focus {
-  border-color: var(--primary-color);
 }
 
 .chat-input button {
-  background: var(--primary-color);
+  background: var(--primary);
   color: white;
   border: none;
   border-radius: 50%;
   width: 48px;
   height: 48px;
   margin-left: 10px;
-  cursor: pointer;
-  transition: background 0.3s;
 }
 
-.chat-input button:hover {
-  background: var(--accent-color);
-}
-
-/* Accounting specific elements */
-.accounting-pill {
-  background: var(--secondary-color);
+.accounting-badge {
+  background: var(--secondary);
   color: white;
-  padding: 4px 10px;
-  border-radius: 12px;
+  padding: 4px 12px;
+  border-radius: 15px;
   font-size: 12px;
   margin-right: 8px;
-}
+  }
