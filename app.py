@@ -1,33 +1,30 @@
-from flask import make_response
-from functools import wraps
 import os
 from flask import Flask, redirect, url_for, session, request, render_template, jsonify, make_response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from google_auth_oauthlib.flow import Flow
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
 from datetime import datetime
+import json
 
+# Load environment variables
 load_dotenv()
 
-# Configure Flask application
+# Initialize Flask app with production settings
 app = Flask(__name__, template_folder='templates')
+app.secret_key = os.environ.get('SECRET_KEY')
 
-# ======== CRITICAL SECURITY SETTINGS ========
-app.secret_key = os.environ.get('SECRET_KEY')  # From Render environment vars
+# Critical production configurations
 app.config.update(
-    # Cookie settings for production
     SESSION_COOKIE_SECURE=True,     # Only send cookies over HTTPS
     SESSION_COOKIE_HTTPONLY=True,   # Prevent JavaScript access
     SESSION_COOKIE_SAMESITE='Lax',  # CSRF protection
-    
-    # Session lifetime (1 day)
-    PERMANENT_SESSION_LIFETIME=86400,
-    
-    # Force HTTPS in production
-    PREFERRED_URL_SCHEME='https'
+    PERMANENT_SESSION_LIFETIME=86400,  # 1 day session lifetime
+    PREFERRED_URL_SCHEME='https'    # Force HTTPS
 )
 
+# Flask-Login setup
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -37,43 +34,70 @@ class User(UserMixin):
         self.email = email
         self.name = name
 
+# Google OAuth configuration
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'  # Allow different OAuth scopes
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+client_secrets_path = 'client_secret.json'
+
 flow = Flow.from_client_secrets_file(
-    'client_secret.json',
-    scopes=['openid', 'email', 'profile', 'https://www.googleapis.com/auth/drive.file'],
+    client_secrets_file=client_secrets_path,
+    scopes=[
+        'openid',
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/drive.file'
+    ],
     redirect_uri='https://munimaiassistant02t03.onrender.com/callback'
 )
 
 @login_manager.user_loader
 def load_user(user_id):
     if 'user' in session:
-        return User(session['user']['id'], session['user']['email'], session['user']['name'])
+        user_data = session['user']
+        return User(user_data['id'], user_data['email'], user_data['name'])
     return None
 
 @app.route('/')
 def home():
+    if current_user.is_authenticated:
+        return redirect(url_for('chat'))
     return render_template('index.html')
 
 @app.route('/login')
 def login():
-    authorization_url, state = flow.authorization_url(prompt='consent')
+    # Generate anti-forgery state token
+    authorization_url, state = flow.authorization_url(
+        prompt='consent',
+        access_type='offline',
+        include_granted_scopes='true'
+    )
     session['state'] = state
     return redirect(authorization_url)
+
 @app.route('/callback')
 def callback():
     try:
         # Verify state parameter
         if request.args.get('state') != session.get('state'):
-            return "Invalid state parameter", 400
-            
+            return redirect(url_for('home'))
+
         # Fetch tokens
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
-        
+
         # Get user info
-        userinfo = build('oauth2', 'v2', credentials=credentials).userinfo().get().execute()
-        user = User(userinfo['id'], userinfo['email'], userinfo.get('name', ''))
-        
-        # Proper session setup
+        userinfo_service = build('oauth2', 'v2', credentials=credentials)
+        userinfo = userinfo_service.userinfo().get().execute()
+
+        # Create user session
+        user = User(
+            id_=userinfo['id'],
+            email=userinfo['email'],
+            name=userinfo.get('name', '')
+        )
+        login_user(user)
+
+        # Store session data
         session.permanent = True
         session['user'] = {
             'id': userinfo['id'],
@@ -81,94 +105,72 @@ def callback():
             'name': userinfo.get('name', ''),
             'credentials': {
                 'token': credentials.token,
-                'refresh_token': credentials.refresh_token
+                'refresh_token': credentials.refresh_token,
+                'token_uri': credentials.token_uri,
+                'client_id': credentials.client_id,
+                'scopes': credentials.scopes
             }
         }
-        
-        # Secure cookie response
-        resp = make_response(redirect(url_for('chat')))
-        resp.set_cookie(
-            'session_id', 
+
+        # Create secure response
+        response = make_response(redirect(url_for('chat')))
+        response.set_cookie(
+            'munim_session',
             value=session.sid,
             secure=True,
             httponly=True,
-            samesite='Lax'
+            samesite='Lax',
+            max_age=86400
         )
-        return resp
-        
+        return response
+
     except Exception as e:
-        print(f"OAuth error: {str(e)}")
-        return redirect(url_for('home'))
-@app.route('/callback')
-def callback():
-    try:
-        # Verify state parameter
-        if request.args.get('state') != session.get('state'):
-            return "Invalid state parameter", 400
-            
-        # Fetch tokens
-        flow.fetch_token(authorization_response=request.url)
-        credentials = flow.credentials
-        
-        # Get user info
-        userinfo = build('oauth2', 'v2', credentials=credentials).userinfo().get().execute()
-        user = User(userinfo['id'], userinfo['email'], userinfo.get('name', ''))
-        
-        # Proper session setup
-        session.permanent = True
-        session['user'] = {
-            'id': userinfo['id'],
-            'email': userinfo['email'],
-            'name': userinfo.get('name', ''),
-            'credentials': {
-                'token': credentials.token,
-                'refresh_token': credentials.refresh_token
-            }
-        }
-        
-        # Secure cookie response
-        resp = make_response(redirect(url_for('chat')))
-        resp.set_cookie(
-            'session_id', 
-            value=session.sid,
-            secure=True,
-            httponly=True,
-            samesite='Lax'
-        )
-        return resp
-        
-    except Exception as e:
-        print(f"OAuth error: {str(e)}")
+        print(f"OAuth Error: {str(e)}")
         return redirect(url_for('home'))
 
 @app.route('/chat')
 @login_required
 def chat():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
     return render_template('chat.html', user=session['user'])
 
 @app.route('/api/message', methods=['POST'])
 @login_required
 def handle_message():
-    user_message = request.json.get('message', '').strip().lower()
-    
-    responses = {
-        "hello": "Hello! I'm Munim, your accounting assistant. I can help with invoices, expenses, and reports.",
-        "invoice": "To create an invoice, provide: 1) Item 2) Quantity 3) Price (e.g., '2 laptops @ $800 each')",
-        "expense": "To record expenses, provide: 1) Amount 2) Category 3) Description (e.g., '$50 office supplies')",
-        "default": "I specialize in: • Invoices • Expenses • Reports • Tax prep. Try: 'Create invoice for 3 laptops'"
-    }
-    
-    response = responses.get(user_message, responses["default"])
-    return jsonify({
-        "response": response,
-        "timestamp": datetime.now().isoformat()
-    })
+    try:
+        user_message = request.json.get('message', '').strip().lower()
+        
+        # Accounting response logic
+        responses = {
+            "hello": "Hello! I'm Munim, your accounting assistant. How can I help with invoices, expenses, or reports today?",
+            "hi": "Hi there! Ready to manage your finances?",
+            "invoice": "To create an invoice, please provide:\n1. Item/service name\n2. Quantity\n3. Price per unit\n\nExample: '2 laptops @ $800 each'",
+            "expense": "To record an expense, please specify:\n1. Amount\n2. Category\n3. Description\n\nExample: 'Record $50 for office supplies'",
+            "default": "I can help with:\n- Creating invoices\n- Tracking expenses\n- Generating reports\n\nTry asking about any of these!"
+        }
+
+        response = responses.get(user_message, responses["default"])
+        return jsonify({
+            "response": response,
+            "timestamp": datetime.now().isoformat(),
+            "status": "success"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "response": "Sorry, I encountered an error processing your request.",
+            "error": str(e),
+            "status": "error"
+        }), 500
 
 @app.route('/logout')
 def logout():
     logout_user()
     session.clear()
-    return redirect(url_for('home'))
+    response = make_response(redirect(url_for('home')))
+    response.delete_cookie('munim_session')
+    return response
 
 if __name__ == '__main__':
     app.run(ssl_context='adhoc')
