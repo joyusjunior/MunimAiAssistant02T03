@@ -48,24 +48,83 @@ def login():
     authorization_url, state = flow.authorization_url(prompt='consent')
     session['state'] = state
     return redirect(authorization_url)
-
 @app.route('/callback')
 def callback():
     try:
+        # Verify state parameter
+        if request.args.get('state') != session.get('state'):
+            return "Invalid state parameter", 400
+            
+        # Fetch tokens
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
-        userinfo = build('oauth2', 'v2', credentials=credentials).userinfo().get().execute()
         
+        # Get user info
+        userinfo = build('oauth2', 'v2', credentials=credentials).userinfo().get().execute()
         user = User(userinfo['id'], userinfo['email'], userinfo.get('name', ''))
-        login_user(user)
+        
+        # Proper session setup
+        session.permanent = True
         session['user'] = {
             'id': userinfo['id'],
             'email': userinfo['email'],
-            'name': userinfo.get('name', '')
+            'name': userinfo.get('name', ''),
+            'credentials': {
+                'token': credentials.token,
+                'refresh_token': credentials.refresh_token
+            }
         }
         
+        # Secure cookie response
         resp = make_response(redirect(url_for('chat')))
-        resp.set_cookie('session_id', value=session.sid, secure=True, httponly=True)
+        resp.set_cookie(
+            'session_id', 
+            value=session.sid,
+            secure=True,
+            httponly=True,
+            samesite='Lax'
+        )
+        return resp
+        
+    except Exception as e:
+        print(f"OAuth error: {str(e)}")
+        return redirect(url_for('home')
+@app.route('/callback')
+def callback():
+    try:
+        # Verify state parameter
+        if request.args.get('state') != session.get('state'):
+            return "Invalid state parameter", 400
+            
+        # Fetch tokens
+        flow.fetch_token(authorization_response=request.url)
+        credentials = flow.credentials
+        
+        # Get user info
+        userinfo = build('oauth2', 'v2', credentials=credentials).userinfo().get().execute()
+        user = User(userinfo['id'], userinfo['email'], userinfo.get('name', ''))
+        
+        # Proper session setup
+        session.permanent = True
+        session['user'] = {
+            'id': userinfo['id'],
+            'email': userinfo['email'],
+            'name': userinfo.get('name', ''),
+            'credentials': {
+                'token': credentials.token,
+                'refresh_token': credentials.refresh_token
+            }
+        }
+        
+        # Secure cookie response
+        resp = make_response(redirect(url_for('chat')))
+        resp.set_cookie(
+            'session_id', 
+            value=session.sid,
+            secure=True,
+            httponly=True,
+            samesite='Lax'
+        )
         return resp
         
     except Exception as e:
