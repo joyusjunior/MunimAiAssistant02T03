@@ -10,12 +10,22 @@ from datetime import datetime
 
 load_dotenv()
 
+# Configure Flask application
 app = Flask(__name__, template_folder='templates')
-app.secret_key = os.environ.get('SECRET_KEY')
+
+# ======== CRITICAL SECURITY SETTINGS ========
+app.secret_key = os.environ.get('SECRET_KEY')  # From Render environment vars
 app.config.update(
-    SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax'
+    # Cookie settings for production
+    SESSION_COOKIE_SECURE=True,     # Only send cookies over HTTPS
+    SESSION_COOKIE_HTTPONLY=True,   # Prevent JavaScript access
+    SESSION_COOKIE_SAMESITE='Lax',  # CSRF protection
+    
+    # Session lifetime (1 day)
+    PERMANENT_SESSION_LIFETIME=86400,
+    
+    # Force HTTPS in production
+    PREFERRED_URL_SCHEME='https'
 )
 
 login_manager = LoginManager(app)
